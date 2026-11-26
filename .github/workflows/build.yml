@@ -27,7 +27,6 @@ jobs:
       - name: Create Android project
         run: |
           mkdir -p app/src/main/java/com/taskagent/app
-          mkdir -p app/src/main
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -72,8 +71,8 @@ jobs:
                   applicationId 'com.taskagent.app'
                   minSdk 23
                   targetSdk 35
-                  versionCode 2
-                  versionName '2.0'
+                  versionCode 3
+                  versionName '3.0'
               }
           }
           EOF
@@ -103,11 +102,10 @@ jobs:
           import android.app.Activity;
           import android.os.Bundle;
           import android.graphics.Color;
-          import android.view.View;
           import android.view.Gravity;
           import android.widget.*;
           import android.webkit.*;
-          import android.text.InputType;
+          import android.net.Uri;
 
           public class MainActivity extends Activity {
               WebView web;
@@ -135,7 +133,7 @@ jobs:
                   urlBox = new EditText(this);
                   urlBox.setSingleLine(true);
                   urlBox.setHint("رابط الموقع https://...");
-                  urlBox.setText("https://pr.social/dashboard");
+                  urlBox.setText("https://pr.social");
                   urlBox.setTextColor(Color.BLACK);
                   urlBox.setHintTextColor(Color.GRAY);
                   urlBox.setBackgroundColor(Color.WHITE);
@@ -172,21 +170,46 @@ jobs:
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.WHITE);
-                  web.getSettings().setJavaScriptEnabled(true);
-                  web.getSettings().setDomStorageEnabled(true);
-                  web.getSettings().setSupportMultipleWindows(false);
+
+                  WebSettings settings = web.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setJavaScriptCanOpenWindowsAutomatically(true);
+                  settings.setSupportMultipleWindows(false);
+                  settings.setLoadsImagesAutomatically(true);
+                  settings.setUseWideViewPort(true);
+                  settings.setLoadWithOverviewMode(true);
+
+                  CookieManager cookieManager = CookieManager.getInstance();
+                  cookieManager.setAcceptCookie(true);
+                  cookieManager.setAcceptThirdPartyCookies(web, true);
+
+                  web.setWebChromeClient(new WebChromeClient());
+
                   web.setWebViewClient(new WebViewClient() {
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                           return false;
                       }
+
                       @Override
-                      public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                      public void onPageStarted(WebView view, String url,
+                                               android.graphics.Bitmap favicon) {
                           status.setText("جارٍ تحميل الموقع...");
                       }
+
                       @Override
                       public void onPageFinished(WebView view, String url) {
                           status.setText("تم تحميل الصفحة");
+                      }
+
+                      @Override
+                      public void onReceivedError(WebView view, WebResourceRequest request,
+                                                 WebResourceError error) {
+                          if (request.isForMainFrame()) {
+                              status.setText("تعذر تحميل الصفحة");
+                          }
                       }
                   });
 
@@ -210,10 +233,10 @@ jobs:
                               if (pageText.length() > 5000) {
                                   pageText = pageText.substring(0,5000);
                               }
-                              result.setText("تعليماتك:\\n" +
+                              result.setText("تعليماتك:\n" +
                                   taskBox.getText().toString() +
-                                  "\\n\\nالنص المستخرج من الصفحة:\\n" + pageText);
-                              status.setText("تم استخراج النص. راجع النتيجة.");
+                                  "\n\nالنص المستخرج من الصفحة:\n" + pageText);
+                              status.setText("تم استخراج النص.");
                           });
                   });
 
