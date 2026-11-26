@@ -1,5 +1,5 @@
 
-name: Build APK
+name: Create AI Agent APK
 
 on:
   workflow_dispatch:
@@ -9,23 +9,225 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Install Gradle
         run: |
-          curl -L https://services.gradle.org/distributions/gradle-8.9-bin.zip -o gradle.zip
-          unzip -q gradle.zip
-          echo "$PWD/gradle-8.9/bin" >> "$GITHUB_PATH"
+          wget https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip gradle-8.9-bin.zip
+          echo "$PWD/gradle-8.9/bin" >> $GITHUB_PATH
+
+      - name: Create Android project
+        run: |
+          mkdir -p app/src/main/java/com/taskagent/app
+          mkdir -p app/src/main
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'TaskAgentAndroid'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.taskagent.app'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.taskagent.app'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 2
+                  versionName '2.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar"
+                  android:label="TASK AI AGENT"
+                  android:usesCleartextTraffic="false">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/taskagent/app/MainActivity.java <<'EOF'
+          package com.taskagent.app;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.graphics.Color;
+          import android.view.View;
+          import android.view.Gravity;
+          import android.widget.*;
+          import android.webkit.*;
+          import android.text.InputType;
+
+          public class MainActivity extends Activity {
+              WebView web;
+              EditText urlBox, taskBox;
+              TextView result, status;
+              Button openButton, analyzeButton;
+
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(16,16,16,16);
+                  root.setBackgroundColor(Color.rgb(15,23,42));
+
+                  TextView title = new TextView(this);
+                  title.setText("🤖 TASK AI AGENT");
+                  title.setTextSize(24);
+                  title.setTextColor(Color.WHITE);
+                  title.setGravity(Gravity.CENTER);
+                  title.setPadding(8,16,8,16);
+                  root.addView(title);
+
+                  urlBox = new EditText(this);
+                  urlBox.setSingleLine(true);
+                  urlBox.setHint("رابط الموقع https://...");
+                  urlBox.setText("https://pr.social/dashboard");
+                  urlBox.setTextColor(Color.BLACK);
+                  urlBox.setHintTextColor(Color.GRAY);
+                  urlBox.setBackgroundColor(Color.WHITE);
+                  root.addView(urlBox);
+
+                  openButton = new Button(this);
+                  openButton.setText("فتح الموقع");
+                  root.addView(openButton);
+
+                  taskBox = new EditText(this);
+                  taskBox.setHint("اكتب تعليمات المهمة هنا");
+                  taskBox.setTextColor(Color.BLACK);
+                  taskBox.setHintTextColor(Color.GRAY);
+                  taskBox.setBackgroundColor(Color.WHITE);
+                  taskBox.setMinLines(2);
+                  taskBox.setGravity(Gravity.TOP);
+                  root.addView(taskBox);
+
+                  analyzeButton = new Button(this);
+                  analyzeButton.setText("🔎 تحليل الصفحة");
+                  root.addView(analyzeButton);
+
+                  status = new TextView(this);
+                  status.setText("جاهز");
+                  status.setTextColor(Color.rgb(134,239,172));
+                  status.setPadding(4,8,4,8);
+                  root.addView(status);
+
+                  result = new TextView(this);
+                  result.setTextColor(Color.WHITE);
+                  result.setText("سيظهر تحليل الصفحة هنا.");
+                  result.setPadding(4,8,4,8);
+                  root.addView(result);
+
+                  web = new WebView(this);
+                  web.setBackgroundColor(Color.WHITE);
+                  web.getSettings().setJavaScriptEnabled(true);
+                  web.getSettings().setDomStorageEnabled(true);
+                  web.getSettings().setSupportMultipleWindows(false);
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          return false;
+                      }
+                      @Override
+                      public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                          status.setText("جارٍ تحميل الموقع...");
+                      }
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          status.setText("تم تحميل الصفحة");
+                      }
+                  });
+
+                  root.addView(web, new LinearLayout.LayoutParams(
+                      LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+
+                  openButton.setOnClickListener(v -> {
+                      String url = urlBox.getText().toString().trim();
+                      if (!url.startsWith("https://") && !url.startsWith("http://")) {
+                          url = "https://" + url;
+                      }
+                      web.loadUrl(url);
+                  });
+
+                  analyzeButton.setOnClickListener(v -> {
+                      status.setText("جارٍ قراءة الصفحة...");
+                      web.evaluateJavascript(
+                          "(function(){return document.body ? document.body.innerText : '';})()",
+                          value -> {
+                              String pageText = value == null ? "" : value;
+                              if (pageText.length() > 5000) {
+                                  pageText = pageText.substring(0,5000);
+                              }
+                              result.setText("تعليماتك:\\n" +
+                                  taskBox.getText().toString() +
+                                  "\\n\\nالنص المستخرج من الصفحة:\\n" + pageText);
+                              status.setText("تم استخراج النص. راجع النتيجة.");
+                          });
+                  });
+
+                  setContentView(root);
+              }
+          }
+          EOF
 
       - name: Build APK
-        run: gradle assembleDebug
+        run: |
+          gradle assembleDebug
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: TaskAgentAPK
           path: app/build/outputs/apk/debug/app-debug.apk
