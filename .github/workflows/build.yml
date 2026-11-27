@@ -1,5 +1,4 @@
-
-name: Create AI Agent APK
+name: TASK AI AGENT V4 Diagnostic
 
 on:
   workflow_dispatch:
@@ -71,8 +70,8 @@ jobs:
                   applicationId 'com.taskagent.app'
                   minSdk 23
                   targetSdk 35
-                  versionCode 3
-                  versionName '3.0'
+                  versionCode 4
+                  versionName '4.0'
               }
           }
           EOF
@@ -82,7 +81,7 @@ jobs:
               <uses-permission android:name="android.permission.INTERNET"/>
               <application
                   android:theme="@android:style/Theme.Material.Light.NoActionBar"
-                  android:label="TASK AI AGENT"
+                  android:label="TASK AI AGENT V4"
                   android:usesCleartextTraffic="false">
                   <activity
                       android:name=".MainActivity"
@@ -103,15 +102,26 @@ jobs:
           import android.os.Bundle;
           import android.graphics.Color;
           import android.view.Gravity;
+          import android.view.View;
           import android.widget.*;
           import android.webkit.*;
-          import android.net.Uri;
+          import org.json.JSONTokener;
 
           public class MainActivity extends Activity {
+
               WebView web;
-              EditText urlBox, taskBox;
-              TextView result, status;
+              EditText urlBox;
+              TextView status, result;
               Button openButton, analyzeButton;
+              String logs = "";
+
+              void log(String message) {
+                  logs = message + "\n" + logs;
+                  if (logs.length() > 6000) {
+                      logs = logs.substring(0, 6000);
+                  }
+                  result.setText(logs);
+              }
 
               @Override
               public void onCreate(Bundle savedInstanceState) {
@@ -119,23 +129,20 @@ jobs:
 
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
-                  root.setPadding(16,16,16,16);
+                  root.setPadding(12,12,12,12);
                   root.setBackgroundColor(Color.rgb(15,23,42));
 
                   TextView title = new TextView(this);
-                  title.setText("🤖 TASK AI AGENT");
-                  title.setTextSize(24);
+                  title.setText("TASK AI AGENT - V4");
+                  title.setTextSize(21);
                   title.setTextColor(Color.WHITE);
                   title.setGravity(Gravity.CENTER);
-                  title.setPadding(8,16,8,16);
                   root.addView(title);
 
                   urlBox = new EditText(this);
                   urlBox.setSingleLine(true);
-                  urlBox.setHint("رابط الموقع https://...");
                   urlBox.setText("https://pr.social");
                   urlBox.setTextColor(Color.BLACK);
-                  urlBox.setHintTextColor(Color.GRAY);
                   urlBox.setBackgroundColor(Color.WHITE);
                   root.addView(urlBox);
 
@@ -143,30 +150,27 @@ jobs:
                   openButton.setText("فتح الموقع");
                   root.addView(openButton);
 
-                  taskBox = new EditText(this);
-                  taskBox.setHint("اكتب تعليمات المهمة هنا");
-                  taskBox.setTextColor(Color.BLACK);
-                  taskBox.setHintTextColor(Color.GRAY);
-                  taskBox.setBackgroundColor(Color.WHITE);
-                  taskBox.setMinLines(2);
-                  taskBox.setGravity(Gravity.TOP);
-                  root.addView(taskBox);
-
-                  analyzeButton = new Button(this);
-                  analyzeButton.setText("🔎 تحليل الصفحة");
-                  root.addView(analyzeButton);
-
                   status = new TextView(this);
-                  status.setText("جاهز");
                   status.setTextColor(Color.rgb(134,239,172));
+                  status.setText("جاهز");
                   status.setPadding(4,8,4,8);
                   root.addView(status);
 
+                  analyzeButton = new Button(this);
+                  analyzeButton.setText("تحليل واستخراج نص الصفحة");
+                  root.addView(analyzeButton);
+
                   result = new TextView(this);
                   result.setTextColor(Color.WHITE);
-                  result.setText("سيظهر تحليل الصفحة هنا.");
-                  result.setPadding(4,8,4,8);
-                  root.addView(result);
+                  result.setTextSize(12);
+                  result.setText("سجل التشخيص سيظهر هنا.");
+                  result.setPadding(6,6,6,6);
+
+                  ScrollView logScroll = new ScrollView(this);
+                  logScroll.addView(result);
+                  root.addView(logScroll,
+                      new LinearLayout.LayoutParams(
+                          LinearLayout.LayoutParams.MATCH_PARENT, 160));
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.WHITE);
@@ -175,41 +179,66 @@ jobs:
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
                   settings.setDatabaseEnabled(true);
+                  settings.setLoadsImagesAutomatically(true);
                   settings.setJavaScriptCanOpenWindowsAutomatically(true);
                   settings.setSupportMultipleWindows(false);
-                  settings.setLoadsImagesAutomatically(true);
                   settings.setUseWideViewPort(true);
                   settings.setLoadWithOverviewMode(true);
 
-                  CookieManager cookieManager = CookieManager.getInstance();
-                  cookieManager.setAcceptCookie(true);
-                  cookieManager.setAcceptThirdPartyCookies(web, true);
+                  CookieManager cookies = CookieManager.getInstance();
+                  cookies.setAcceptCookie(true);
+                  cookies.setAcceptThirdPartyCookies(web, true);
 
-                  web.setWebChromeClient(new WebChromeClient());
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public boolean onConsoleMessage(ConsoleMessage message) {
+                          log("JS " + message.messageLevel() + ": " +
+                              message.message() + " (line " +
+                              message.lineNumber() + ")");
+                          return true;
+                      }
+                  });
 
                   web.setWebViewClient(new WebViewClient() {
-                      @Override
-                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                          return false;
-                      }
 
                       @Override
                       public void onPageStarted(WebView view, String url,
                                                android.graphics.Bitmap favicon) {
-                          status.setText("جارٍ تحميل الموقع...");
+                          status.setText("بدأ التحميل: " + url);
+                          log("بدأ تحميل: " + url);
                       }
 
                       @Override
                       public void onPageFinished(WebView view, String url) {
-                          status.setText("تم تحميل الصفحة");
+                          status.setText("انتهى تحميل الصفحة: " + url);
+                          log("انتهى تحميل الصفحة الرئيسية.");
+                          view.evaluateJavascript(
+                              "(function(){return document.readyState})()",
+                              value -> log("حالة المستند: " + value));
                       }
 
                       @Override
-                      public void onReceivedError(WebView view, WebResourceRequest request,
-                                                 WebResourceError error) {
+                      public boolean shouldOverrideUrlLoading(
+                          WebView view, WebResourceRequest request) {
+                          return false;
+                      }
+
+                      @Override
+                      public void onReceivedError(
+                          WebView view, WebResourceRequest request,
+                          WebResourceError error) {
                           if (request.isForMainFrame()) {
-                              status.setText("تعذر تحميل الصفحة");
+                              status.setText("خطأ في الصفحة الرئيسية");
+                              log("خطأ: " + error.getDescription());
                           }
+                      }
+
+                      @Override
+                      public void onReceivedHttpError(
+                          WebView view, WebResourceRequest request,
+                          WebResourceResponse response) {
+                          log("HTTP " + response.getStatusCode() +
+                              " : " + request.getUrl());
                       }
                   });
 
@@ -218,25 +247,30 @@ jobs:
 
                   openButton.setOnClickListener(v -> {
                       String url = urlBox.getText().toString().trim();
-                      if (!url.startsWith("https://") && !url.startsWith("http://")) {
+                      if (!url.startsWith("https://") &&
+                          !url.startsWith("http://")) {
                           url = "https://" + url;
                       }
+                      logs = "";
+                      result.setText("");
                       web.loadUrl(url);
                   });
 
                   analyzeButton.setOnClickListener(v -> {
-                      status.setText("جارٍ قراءة الصفحة...");
+                      status.setText("جارٍ تحليل الصفحة...");
+                      log("طلب تحليل الصفحة...");
                       web.evaluateJavascript(
-                          "(function(){return document.body ? document.body.innerText : '';})()",
+                          "(function(){return JSON.stringify({url:location.href,title:document.title,ready:document.readyState,text:document.body?document.body.innerText:'',htmlLength:document.documentElement?document.documentElement.innerHTML.length:0})})()",
                           value -> {
-                              String pageText = value == null ? "" : value;
-                              if (pageText.length() > 5000) {
-                                  pageText = pageText.substring(0,5000);
+                              try {
+                                  Object parsed = new JSONTokener(value).nextValue();
+                                  String data = String.valueOf(parsed);
+                                  log("نتيجة تحليل الصفحة:\n" + data);
+                                  status.setText("انتهى التحليل");
+                              } catch (Exception e) {
+                                  log("خطأ في قراءة النتيجة: " + value);
+                                  status.setText("خطأ في التحليل");
                               }
-                              result.setText("تعليماتك:\n" +
-                                  taskBox.getText().toString() +
-                                  "\n\nالنص المستخرج من الصفحة:\n" + pageText);
-                              status.setText("تم استخراج النص.");
                           });
                   });
 
@@ -246,12 +280,11 @@ jobs:
           EOF
 
       - name: Build APK
-        run: |
-          gradle assembleDebug
+        run: gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TaskAgentAPK
+          name: TaskAgentAPK-V4
           path: app/build/outputs/apk/debug/app-debug.apk
           
